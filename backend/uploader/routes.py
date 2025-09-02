@@ -13,7 +13,7 @@ from quart import (
 from pyrogram.errors import FloodWait
 
 # Import the shared pyrogram client instance
-from .. import app_config, pyrogram_client
+from .. import app_config, pyrogram_client, file_cache
 
 # Create a Blueprint for the backend API
 backend_bp = Blueprint(
@@ -63,31 +63,23 @@ async def upload():
 # --- FILE LISTING ROUTE ---
 @backend_bp.route("/get_recent_files", methods=["GET"])
 async def get_recent_files():
-    """Fetches messages from the last 30 minutes and returns a list of files."""
+    """Reads from the in-memory cache to get files from the last 30 minutes."""
     if not app_config.CHAT_ID:
         return jsonify({"ok": False, "message": "❌ Server CHAT_ID not configured."}), 500
 
     files = []
-    thirty_mins_ago = int(time.time()) - (30 * 60)
+    thirty_mins_ago = time.time() - (30 * 60)
 
-    try:
-        # Use Pyrogram to fetch history
-        async for message in pyrogram_client.get_chat_history(chat_id=int(app_config.CHAT_ID), limit=100):
-            if message.date < thirty_mins_ago:
-                break  # Stop when we go past 30 minutes
+    # Iterate through our cache of recent files
+    for timestamp, file_details in file_cache:
+        if timestamp >= thirty_mins_ago:
+            files.append(file_details)
+        else:
+            # Since the cache is ordered by time, we can stop
+            # as soon as we find a file older than 30 minutes.
+            break
 
-            media = message.document or message.photo
-            if media:
-                files.append({
-                    "name": getattr(media, 'file_name', f"photo_{message.id}.jpg"),
-                    "file_id": media.file_id,
-                    "size": media.file_size,
-                    "mime": getattr(media, 'mime_type', 'image/jpeg')
-                })
-        
-        return jsonify({"ok": True, "files": files})
-    except Exception as e:
-        return jsonify({"ok": False, "message": f"❌ Error fetching history: {e}"}), 500
+    return jsonify({"ok": True, "files": files})
 
 
 # --- FILE STREAMING ROUTE ---
