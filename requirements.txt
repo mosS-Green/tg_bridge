@@ -1,6 +1,6 @@
 quart
-pyrogram
-tgcrypto
+pyrotgfork
+PyTgCrypto @ git+https://github.com/TelegramPlayGround/pyrogram-tgcrypto
 requests
 python-dotenv
 hypercorn
