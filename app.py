@@ -72,7 +72,7 @@ async def main():
     await pyrogram_client.stop()
     print("Pyrogram client stopped.")
 
-if name == "__main__":
+if __name__ == "__main__":
     try:
         import os # Make sure os is imported for port logic
         asyncio.run(main(), loop_factory=lambda _: pyrogram_client.loop)
