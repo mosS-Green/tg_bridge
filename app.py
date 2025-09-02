@@ -49,7 +49,7 @@ async def cache_new_file(client, message):
 # ===================================================================
 
 # Create the Quart App
-app = Quart(__name__)
+app = Quart(name)
 
 # Register the blueprints
 app.register_blueprint(frontend_bp)
@@ -61,30 +61,18 @@ app.config['FILE_CACHE'] = file_cache
 app.config['APP_CONFIG'] = app_config
 
 
-# --- App Lifecycle: Start and Stop Pyrogram Client ---
-@app.before_serving
-async def startup():
-    """Connects the Pyrogram client before the app starts serving requests."""
-    print("Starting Pyrogram client...")
-    await pyrogram_client.start()
-    print("Pyrogram client started.")
-
-@app.after_serving
-async def shutdown():
-    """Disconnects the Pyrogram client after the app stops."""
-    print("Stopping Pyrogram client...")
-    await pyrogram_client.stop()
-    print("Pyrogram client stopped.")
-
-
 async def main():
     """Main function to configure and run the ASGI server."""
+    print("Starting Pyrogram client...")
+    await pyrogram_client.start()
     port = int(os.environ.get("PORT", 8080))
     hypercorn_config = HypercornConfig()
     hypercorn_config.bind = [f"0.0.0.0:{port}"]
     await serve(app, hypercorn_config)
+    await pyrogram_client.stop()
+    print("Pyrogram client stopped.")
 
-if __name__ == "__main__":
+if name == "__main__":
     try:
         import os # Make sure os is imported for port logic
         asyncio.run(main(), loop_factory=lambda _: pyrogram_client.loop)
