@@ -2,13 +2,15 @@ from quart import Blueprint, render_template
 from config import Config
 
 # Create a Blueprint for the frontend.
-# It knows where to find templates and static files.
+# The key is to define a unique static_url_path for this blueprint's static files.
 frontend_bp = Blueprint(
     'frontend_bp',
     __name__,
     template_folder='templates',
     static_folder='static',
-    static_url_path='/static' # URL path for static files
+    # This line tells Quart: "Serve the files from the 'static_folder' (./static/)
+    # at the URL path '/frontend/static'".
+    static_url_path='/frontend/static'
 )
 
 @frontend_bp.route("/")
