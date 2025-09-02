@@ -87,6 +87,6 @@ async def main():
 if __name__ == "__main__":
     try:
         import os # Make sure os is imported for port logic
-        asyncio.run(main())
+        asyncio.run(main(), loop_factory=lambda _: pyrogram_client.loop)
     except KeyboardInterrupt:
         print("Shutting down...")
