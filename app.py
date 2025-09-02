@@ -49,7 +49,7 @@ async def cache_new_file(client, message):
 # ===================================================================
 
 # Create the Quart App
-app = Quart(name)
+app = Quart(__name__)
 
 # Register the blueprints
 app.register_blueprint(frontend_bp)
