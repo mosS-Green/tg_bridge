@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Telegram Tools</title>
+  <link rel="icon" type="image/png" href="/static/icon.png"> <!-- Assuming icon.png is in static -->
+  <link rel="stylesheet" href="{{ url_for('frontend_bp.static', filename='style.css') }}">
+</head>
+<body>
+  <div class="container">
+    <div id="header-container" class="collapsed">
+      <div class="header-title" onclick="toggleCredentials()">
+        <h1>Telegram Tools</h1>
+        <svg id="toggle-arrow" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+      </div>
+      <div id="credentials-content">
+        <label for="token">Bot token (Optional)</label>
+        <input id="token" name="token" type="text" placeholder="Uses server's default token">
+        <label for="chatid">Chat ID (Optional)</label>
+        <input id="chatid" name="chatid" type="text" placeholder="Uses server's default chat ID">
+      </div>
+    </div>
+    
+    <form id="uploadForm">
+      <label for="caption">Caption (optional)</label>
+      <textarea id="caption" name="caption" rows="2" placeholder="Write a caption..."></textarea>
+      <label>File Uploader</label>
+      <div id="drop-zone">
+        <span id="drop-zone-text">Drag & drop a file here, or click to select</span>
+        <div id="file-name"></div>
+      </div>
+      <input id="file-input" name="file" type="file" required>
+      <button id="uploadBtn" type="submit" disabled>Upload</button>
+      <div id="paste-zone" tabindex="0">Or click here and paste an image (Ctrl+V)</div>
+    </form>
+    <div id="result"><pre id="result-text"></pre></div>
+    
+    <div id="file-list-container">
+      <button id="fetchBtn">Fetch Recent Files (30 mins)</button>
+      <div id="spinner" class="spinner"></div>
+      <ul id="file-list"></ul>
+    </div>
+  </div>
+
+  <script>
+    // --- Global Vars ---
+    const appBaseUrl = "{{ app_base_url }}";
+    let resultTimer = null;
+
+    // --- Element Refs ---
+    const elements = {
+        tokenInput: document.getElementById('token'),
+        chatInput: document.getElementById('chatid'),
+        uploadBtn: document.getElementById('uploadBtn'),
+        dropZone: document.getElementById('drop-zone'),
+        fileInput: document.getElementById('file-input'),
+        dropZoneText: document.getElementById('drop-zone-text'),
+        fileNameDisplay: document.getElementById('file-name'),
+        pasteZone: document.getElementById('paste-zone'),
+        resultDiv: document.getElementById('result'),
+        resultText: document.getElementById('result-text'),
+        fetchBtn: document.getElementById('fetchBtn'),
+        fileList: document.getElementById('file-list'),
+        spinner: document.getElementById('spinner')
+    };
+    
+    // --- Core Logic ---
+    function checkReady() {
+      const okFile = elements.fileInput.files.length > 0;
+      elements.uploadBtn.disabled = !okFile;
+    }
+    
+    function handleFileSelect(files) {
+        if (files && files.length > 0) {
+            elements.dropZoneText.textContent = 'File selected:';
+            elements.fileNameDisplay.textContent = files[0].name;
+        } else {
+            resetFileSelection();
+        }
+        checkReady();
+    }
+
+    function resetFileSelection() {
+        elements.fileInput.value = '';
+        elements.dropZoneText.textContent = 'Drag & drop a file here, or click to select';
+        elements.fileNameDisplay.textContent = '';
+        checkReady();
+    }
+
+    function toggleCredentials() {
+      document.getElementById('header-container').classList.toggle('collapsed');
+    }
+
+    function displayResult(message, isSuccess) {
+        elements.resultText.textContent = message;
+        elements.resultDiv.className = isSuccess ? 'success' : 'error';
+        elements.resultDiv.classList.add('visible');
+        resultTimer = setTimeout(() => {
+            elements.resultDiv.classList.remove('visible');
+            if(isSuccess && message.includes("Upload")) resetFileSelection();
+        }, 3000);
+    }
+
+    // --- Uploader Events ---
+    elements.fileInput.addEventListener('change', () => handleFileSelect(elements.fileInput.files));
+    elements.dropZone.addEventListener('click', () => elements.fileInput.click());
+    elements.dropZone.addEventListener('dragover', (e) => { e.preventDefault(); elements.dropZone.classList.add('drag-over'); });
+    elements.dropZone.addEventListener('dragleave', () => elements.dropZone.classList.remove('drag-over'));
+    elements.dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      elements.dropZone.classList.remove('drag-over');
+      if (e.dataTransfer.files.length) {
+        elements.fileInput.files = e.dataTransfer.files;
+        handleFileSelect(elements.fileInput.files);
+        submitUpload();
+      }
+    });
+    elements.pasteZone.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const item = Array.from(e.clipboardData.items).find(i => i.kind === 'file' && i.type.startsWith('image/'));
+      if (item) {
+        const file = item.getAsFile();
+        const dataTransfer = new DataTransfer();
+        dataTransfer.items.add(new File([file], `pasted-${Date.now()}.png`, {type: file.type}));
+        elements.fileInput.files = dataTransfer.files;
+        handleFileSelect(elements.fileInput.files);
+        submitUpload();
+      }
+    });
+    document.getElementById('uploadForm').addEventListener('submit', (e) => { e.preventDefault(); submitUpload(); });
+
+    async function submitUpload() {
+        if (elements.uploadBtn.disabled) return;
+        const formData = new FormData();
+        formData.append('token', elements.tokenInput.value);
+        formData.append('chatid', elements.chatInput.value);
+        formData.append('caption', document.getElementById('caption').value);
+        formData.append('file', elements.fileInput.files[0]);
+
+        elements.uploadBtn.disabled = true;
+        elements.uploadBtn.textContent = 'Uploading...';
+        clearTimeout(resultTimer);
+        elements.resultDiv.classList.remove('visible');
+
+        try {
+            const response = await fetch("/api/upload", { method: 'POST', body: formData });
+            const data = await response.json();
+            displayResult(data.message, data.ok);
+        } catch (error) {
+            displayResult('An unexpected network error occurred.', false);
+        } finally {
+            elements.uploadBtn.textContent = 'Upload';
+            checkReady();
+        }
+    }
+
+    // --- File Lister Events ---
+    elements.fetchBtn.addEventListener('click', async () => {
+        elements.fetchBtn.disabled = true;
+        elements.spinner.style.display = 'block';
+        elements.fileList.innerHTML = '';
+        try {
+            const response = await fetch("/api/get_recent_files");
+            const data = await response.json();
+            if (data.ok) {
+                if (data.files.length === 0) {
+                   elements.fileList.innerHTML = '<li>No files found in the last 30 minutes.</li>';
+                } else {
+                    renderFileList(data.files);
+                }
+            } else {
+                displayResult(data.message, false);
+            }
+        } catch (error) {
+            displayResult('Failed to fetch recent files.', false);
+        } finally {
+            elements.fetchBtn.disabled = false;
+            elements.spinner.style.display = 'none';
+        }
+    });
+
+    function renderFileList(files) {
+        const listHtml = files.map(file => {
+            const downloadUrl = `${appBaseUrl}/api/stream?file_id=${encodeURIComponent(file.file_id)}&name=${encodeURIComponent(file.name)}&size=${file.size}&mime=${encodeURIComponent(file.mime)}`;
+            const fileSize = (file.size / 1024 / 1024).toFixed(2);
+            return `<li>
+                        <a href="${downloadUrl}" rel="noopener noreferrer" download="${file.name}">${file.name}</a>
+                        <span class="file-size">${fileSize} MB</span>
+                    </li>`;
+        }).join('');
+        elements.fileList.innerHTML = listHtml;
+    }
+    
+    // --- Initial State Setup ---
+    checkReady();
+  </script>
+</body>
+</html>
