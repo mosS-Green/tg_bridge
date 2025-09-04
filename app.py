@@ -78,3 +78,24 @@ if __name__ == "__main__":
         asyncio.run(main(), loop_factory=lambda _: pyrogram_client.loop)
     except KeyboardInterrupt:
         print("Shutting down...")
+
+@pyrogram_client.on_message(
+    filters.chat(app_config.CHAT_ID) & filters.regex("/cache") & filters.reply
+)
+async def cache_new_file_cmd(client, _message):
+    """Listens for new files and adds them to our in-memory cache."""
+    message=_message.reply_to_message
+    media = message.document or message.photo
+    if media:
+        file_details = {
+            "name": getattr(media, 'file_name', f"photo_{message.id}.jpg"),
+            "file_id": media.file_id,
+            "size": media.file_size,
+            "mime": getattr(media, 'mime_type', 'image/jpeg')
+        }
+        file_cache.appendleft((time.time(), file_details))
+        await _message.reply(f"Cached new file: {file_details['name']}")
+
+@pyrogram_client.on_message(filters.regex("/ping"))
+async def pint(c,m):
+    await m.reply("pong")
