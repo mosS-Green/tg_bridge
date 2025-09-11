@@ -14,7 +14,7 @@ class Config:
     BOT_TOKEN = os.environ.get("BOT_TOKEN")
 
     # --- Flask App Settings ---
-    CHAT_ID = os.environ.get("CHAT_ID")
+    CHAT_ID = int(os.environ.get("CHAT_ID"))
     # The full URL where your Render app will be live (e.g., https://my-app.onrender.com)
     # This is crucial for generating correct download links.
     APP_BASE_URL = os.environ.get("APP_BASE_URL")
